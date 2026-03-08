@@ -1,106 +1,122 @@
 import socket
 import threading
 import time
-import random #vou usar nao tira nao
+import random 
 
-# configurações do servidor
-CONFIG = {
-    "HOST": "127.0.0.1",
-    "PORTA": 5000
-}
+# Configurações do servidor
+CONFIG = {"HOST": "127.0.0.1", "PORTA": 5000}
 
-#o item do leilao atual que vai anunciar
+# Memória Compartilhada
 item_leilao = {
     "item": "Quadro Monalisa",
-    "valor_atual": 900000,
+    "valor_atual": 900000.0,
     "vencedor": "ninguém",
     "tempo": 60,
-    "ativo":True
+    "ativo": True
 }
 
-lock = threading.Lock() #penas uma memória mexe na memória compartilhada
+lock = threading.Lock() # Protege a memória compartilhada
 
-# thread 1: recebe e processa a mensagem do cliente
-def thread_receber(conn, addr)
+def thread_cronometro(conexao):
+    #Controla o tempo e evita erro de socket fechado
+    try:
+        while item_leilao["tempo"] > 0 and item_leilao["ativo"]:
+            time.sleep(1) #cadencia a contagem regressiva
+            with lock:
+                item_leilao["tempo"] -= 1
+            
+            # Avisa o cliente nos últimos 10 segundos
+            if 0 < item_leilao["tempo"] <= 10:
+                try:
+                    conexao.send(f"\nO leilão encerra em {item_leilao['tempo']}s!".encode())
+                except:
+                    break 
+
+        if item_leilao["ativo"]:
+            with lock: #solicita permissão para acessar a memoria compartilhada
+                item_leilao["ativo"] = False #altera pra falso o status do leilao
+            try:
+                conexao.send(f"\nLeilão encerrado! Vencedor: {item_leilao['vencedor']}".encode())
+            except:
+                pass
+    finally:
+        print("Tempo acabou")
+
+def thread_receber(conn, addr):
     print(f"[Servidor] Cliente {addr} conectado.")
-    while item_leilao ["ativo"]:
+    while item_leilao["ativo"]:
         try:
-            dados = conn.recv(1024).decode.strip()
-            if not dados:
-                break
-            # comando quitt
+            dados = conn.recv(1024).decode().strip() #recebe os bytes do socket e transforma em texto
+            if not dados: break
+
             if dados == ":quit":
                 conn.send("Saindo do leilão...".encode())
                 break
-            # comando item
+            
             elif dados == ":item":
                 with lock:
                     resposta = (
-                        f"Item: {item_leilao["nome"]}"
-                        f"/n Lance: {item_leilao['valor_atual']:.2f}"
-                        f"/n Maior lance: {item_leilao["vencedor"]}"
+                        f"\n--- INFO ITEM ---\n"
+                        f"Item: {item_leilao['item']}\n"
+                        f"Lance Atual: R${item_leilao['valor_atual']:.2f}\n"
+                        f"Maior lance: {item_leilao['vencedor']}\n"
+                        f"------------------"
                     )
                 conn.send(resposta.encode())
-            # tempo
+
             elif dados == ":tempo":
                 with lock:
-                    t = item_leilao["tempo"]
-                resposta = f"Tempo restante:{t} segundos!"
+                    resposta = f"\nTempo restante: {item_leilao['tempo']} segundos!"
                 conn.send(resposta.encode())
-            # lance
+
             else:
                 try:
-                    novo_lance = float (dados)
+                    novo_lance = float(dados)
                     with lock:
                         if novo_lance > item_leilao["valor_atual"]:
                             item_leilao["valor_atual"] = novo_lance
-                            item_leilao["vencedor"] = f"Vc mesmo({addr[0]})!"
-                            item_leilao["tempo"] = 90
-                            resposta = (
-                                f"Lance de R${novo_lance:.2f} aceito! Você está ganhando!"
-                            )
+                            item_leilao["vencedor"] = f"Você ({addr[1]})"
+                            item_leilao["tempo"] = 30 # Dá mais tempo ao aceitar lance
+                            resposta = f"\n[SUCESSO]: Lance de R${novo_lance:.2f} ACEITO!"
                         else:
-                            with lock:
-                                atual = item_leilao["valor_atual"]
-                            resposta = (
-                                f"Lance negado... O lance atual é de R${atual:.2f}, tente novamente."
-                            )
+                            resposta = f"\nLance baixo! O valor atual é R${item_leilao['valor_atual']:.2f}"
                     conn.send(resposta.encode())
                 except ValueError:
-                    conn.send(f"Comando inválido...".encode())
-        except(ConnectionResetError, BrokenPipeError):
-            print(f"[Servidor] Conexão com o {addr} acabou.")
+                    conn.send("\nDigite um valor numérico ou comando (:item, :tempo).".encode())
+        except:
             break
     conn.close()
 
-#thread 2: cronometro, bots e atualizacoes
 
-#iniciando o servidor
-
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #criação do socket com IPv4(AF_NET) e transporte TCP (SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #garante que se o servidor cair e tentar rodar novamente, ele nao de erro
 server.bind((CONFIG["HOST"], CONFIG["PORTA"]))
-server.listen() 
+server.listen()
 
-print(f"Servidor pronto. \nItem: {item_leilao['nome']} \nLance inicial: R${item_leilao['valor_atual']:.2f} \nConectando...")
+print(f"Servidor pronto.\nItem: {item_leilao['item']}\nLance inicial: R${item_leilao['valor_atual']:.2f}")
 
 conn, addr = server.accept()
 horario = time.strftime("%H:%M")
 
-mensagem_inicial = (f"{horario}: CONECTADO!!\n\n"
-    f"Item em leilão: {item_leilao['nome']}\n"
-    f"Lance inicial: R${item_leilao['valor_atual']:.2f}\n"
-    f"⏱Tempo: {item_leilao['tempo']} segundos\n\n"
-    f"Comandos: :item | :tempo | :quit | ou envie um valor para dar um lance\n"
+mensagem_inicial = (
+    f"\n{horario}: CONECTADO!!\n"
+    f"Item: {item_leilao['item']} | Valor: R${item_leilao['valor_atual']:.2f}\n"
+    f"Comandos: :item | :tempo | :quit | ou digite o valor do lance\n"
 )
-conn.send(mensagem_inicial.encode()) #envia para o cliente(codificar para bytes(pq o cabo de rede só entende bytes, bits etc))
+conn.send(mensagem_inicial.encode())
 
-#soltando as threads
-t1 = threading.Thread(target=thread_receber, args=(conn,addr), daemon = True) #fazer o mesmo com a thread 2
+#Threads
+t1 = threading.Thread(target=thread_receber, args=(conn, addr), daemon=True)
+t1.start() #thread para ouvir o comando dos clientes
 
-t1.start()
+t2 = threading.Thread(target=thread_cronometro, args=(conn,), daemon=True)
+t2.start() #thread de controlar o tempo do leilão
 
-t1.join()
+try:
+    while item_leilao["ativo"]:
+        time.sleep(1)
+except KeyboardInterrupt: #ctrl C faz o socket cair ou servidor seila
+    print("\nDesligando servidor...")
+    item_leilao["ativo"] = False
 
-print("[Servidor] Leilão encerrado. Fechando...")
-server.close()
+server.close() #fecha a porta e encerra o socket
