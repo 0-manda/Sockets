@@ -1,7 +1,6 @@
 import socket
 import threading
 import time
-import random
 
 #configs
 CONFIG = {"HOST": "127.0.0.1", "PORTA": 5000}
