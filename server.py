@@ -95,7 +95,25 @@ server.listen()
 
 print(f"Servidor pronto.\nItem: {item_leilao['item']}\nLance inicial: R${item_leilao['valor_atual']:.2f}")
 
-conn, addr = server.accept()
+# cria lista dos clientes conectados
+clientes_conectados = []
+
+print("Servidor aguardando conexões...")
+
+while True:
+    try:
+        # server fica esperando qualquer pessoa se conectar
+        conn, addr = server.accept()
+        
+        with lock:
+            clientes_conectados.append(conn)
+        
+        t1 = threading.Thread(target=thread_receber, args=(conn, addr), daemon=True)
+        t1.start() #thread para ouvir o comando dos clientes
+    
+    except KeyboardInterrupt:
+        break
+
 horario = time.strftime("%H:%M")
 
 mensagem_inicial = (
@@ -105,9 +123,6 @@ mensagem_inicial = (
 )
 conn.send(mensagem_inicial.encode())
 
-#Threads
-t1 = threading.Thread(target=thread_receber, args=(conn, addr), daemon=True)
-t1.start() #thread para ouvir o comando dos clientes
 
 t2 = threading.Thread(target=thread_cronometro, args=(conn,), daemon=True)
 t2.start() #thread de controlar o tempo do leilão
@@ -118,5 +133,10 @@ try:
 except KeyboardInterrupt: #ctrl C faz o socket cair ou servidor seila
     print("\nDesligando servidor...")
     item_leilao["ativo"] = False
+
+# Banco de dados temporário (em memória) para a fase 2 
+usuarios = {
+
+}
 
 server.close() #fecha a porta e encerra o socket
