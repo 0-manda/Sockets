@@ -20,7 +20,7 @@ def thread_escutar(cli_socket):
             if "LEILÃO ENCERRADO" in msg or "Saindo do leilão" in msg or "Servidor cheio" in msg:
                 encerrado.set()
                 break
-            print("Sua ação: ", end="", flush=True)
+            # do loop principal, embaralhando o terminal
         except Exception:
             if not encerrado.is_set():
                 print("\n[Cliente] Conexão perdida com o servidor.")
@@ -28,61 +28,63 @@ def thread_escutar(cli_socket):
             break
 
 #thread 1 (leitura de comandos)
-def ajuda ():
+def ajuda():
     print("\nComandos disponíveis:\n")
-    print(":help - Exibe esta mensagem de ajuda\n")
-    print(":quit - Sair do leilão\n")
-    print(":info - Exibe informações sobre o leilão atual\n")
-    print(":tempo - Exibe o tempo restante do leilão\n")
-    print(":saldo - Exibe seu saldo disponível\n")
-    print(":Lance - Dar um lance\n")
-    print(":Vender - Vender um item por 90%\n")
-    print(":ajuda - Exibe esta mensagem\n")
-
+    print(":Lance <item> <valor>  — Dar um lance (ex: :Lance Quadro Monalisa 1200)\n")
+    print(":Vender <item> — Vender item por 90% do valor (ex: :Vender Quadro Monalisa)\n")
+    print(":item — Info do item em leilão\n")
+    print(":tempo — Exibe o tempo restante do leilão\n")
+    print(":saldo — Exibe seu saldo disponível e bloqueado\n")
+    print(":itens — Lista seus itens comprados\n")
+    print(":ajuda — Exibe esta mensagem\n")
+    print(":quit — Sair do leilão\n")
 
 def main ():
     try:
         cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         cliente.connect((CONFIG["HOST"], CONFIG["PORTA"]))
-        
         #recebendo dados
         dados_iniciais = cliente.recv(4096).decode()
         print(dados_iniciais)
         if "servidor cheio" in dados_iniciais.lower():
             print("O servidor está cheio. Tente novamente mais tarde.")
-            return
-        nome = input("Digite seu nome: ").strip()
-        while not nome:
-            print("O nome não pode ser vazio. Tente novamente.")
+            # usa encerrado.set() e pula o restante com else
+            encerrado.set()
+        else:
             nome = input("Digite seu nome: ").strip()
-        cliente.send(nome.encode())
-        resposta = cliente.recv(4096).decode()
-        print(resposta)
-        # inicia a escuta
-        t = threading.Thread(target=thread_escutar, args=(cliente,), daemon=True)
-        t.start()
-
-        ajuda()
-        while not encerrado.is_set():
-            try:
-                comando = input("Sua ação: ").strip()
-            except EOFError:
-                break
-            if not comando:
-                continue
-            if comando == ":ajuda":
-                ajuda()
-                continue
-            try:
-                cliente.send(comando.encode())
-            except Exception:
-                print("[Cliente] Erro ao enviar o comando.")
-                break
-            if comando.strip() == ":quit":
-                print("Saindo...")
-                encerrado.set()
-                break
-        t.join(timeout=2)
+            while not nome:
+                print("O nome não pode ser vazio. Tente novamente.")
+                nome = input("Digite seu nome: ").strip()
+            cliente.send(nome.encode())
+            resposta = cliente.recv(4096).decode()
+            print(resposta)
+            # inicia a escuta
+            t = threading.Thread(target=thread_escutar, args=(cliente,), daemon=True)
+            t.start()
+            ajuda()
+            while not encerrado.is_set():
+                try:
+                    comando = input("Sua ação: ").strip()
+                except EOFError:
+                    break
+                if not comando:
+                    continue
+                if comando == ":ajuda":
+                    ajuda()
+                    continue
+                try:
+                    cliente.send(comando.encode())
+                except Exception:
+                    print("[Cliente] Erro ao enviar o comando.")
+                    break
+                if comando.strip() == ":quit":
+                    print("Saindo...")
+                    encerrado.set()
+                    break
+            t.join(timeout=2)
+    except ConnectionRefusedError:
+        print("\n[ERRO] Não foi possível conectar ao servidor.")
+        print("Verifique se o servidor está em execução.")
     except Exception as e:
         print(f"\n[ERRO CRÍTICO] {e}")
     finally:
