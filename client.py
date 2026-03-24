@@ -1,12 +1,9 @@
 import socket
 import threading
-
 #configs
 CONFIG = {"HOST": "127.0.0.1", "PORTA": 5000}
-
 #flag ao finalizar as threads
 encerrado = threading.Event()
-
 def thread_escutar(cli_socket):
     while not encerrado.is_set():
         try:
@@ -20,13 +17,11 @@ def thread_escutar(cli_socket):
             if "LEILÃO ENCERRADO" in msg or "Saindo do leilão" in msg or "Servidor cheio" in msg:
                 encerrado.set()
                 break
-            # do loop principal, embaralhando o terminal
         except Exception:
             if not encerrado.is_set():
                 print("\n[Cliente] Conexão perdida com o servidor.")
             encerrado.set()
             break
-
 #thread 1 (leitura de comandos)
 def ajuda():
     print("\nComandos disponíveis:\n")
@@ -38,8 +33,8 @@ def ajuda():
     print(":itens — Lista seus itens comprados\n")
     print(":ajuda — Exibe esta mensagem\n")
     print(":quit — Sair do leilão\n")
-
-def main ():
+def main():
+    cliente = None
     try:
         cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         cliente.connect((CONFIG["HOST"], CONFIG["PORTA"]))
@@ -72,14 +67,18 @@ def main ():
                 if comando == ":ajuda":
                     ajuda()
                     continue
+                if comando.strip() == ":quit":
+                    print("Saindo...")
+                    encerrado.set()
+                    try:
+                        cliente.send(comando.encode())
+                    except Exception:
+                        pass
+                    break
                 try:
                     cliente.send(comando.encode())
                 except Exception:
                     print("[Cliente] Erro ao enviar o comando.")
-                    break
-                if comando.strip() == ":quit":
-                    print("Saindo...")
-                    encerrado.set()
                     break
             t.join(timeout=2)
     except ConnectionRefusedError:
@@ -88,8 +87,8 @@ def main ():
     except Exception as e:
         print(f"\n[ERRO CRÍTICO] {e}")
     finally:
-        cliente.close()
+        if cliente:
+            cliente.close()
     input("\nPressione ENTER para fechar a janela...")
-
 if __name__ == "__main__":
     main()
