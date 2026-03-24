@@ -10,7 +10,7 @@ import queue
 # configs do servidor
 CONFIG = {"HOST": "127.0.0.1", "PORTA": 5000}
 
-if len(sys.argv) <2:
+if len(sys.argv) < 2:
     print("Uso: python server.py <limite de conexão>")
     sys.exit(1)
 try:
@@ -20,18 +20,20 @@ except ValueError:
     sys.exit(1)
 
 lock_usuarios = threading.Lock()  # lock para acessar a lista de usuários
+
 def carregar_usuarios():
     if os.path.exists("usuarios.json"):
         with open("usuarios.json", "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
+
 def salvar_usuarios():
     with open("usuarios.json", "w", encoding="utf-8") as f:
         json.dump(usuarios, f, indent=4)
 
 usuarios = carregar_usuarios()  # dicionário de usuários e seus saldos
 
-#memória Compartilhada
+# memória Compartilhada
 item_leilao = {
     "item": "Quadro Monalisa",
     "descricao": "Obra-prima de Leonardo da Vinci, século XVI.",
@@ -238,8 +240,7 @@ def thread_cronometro():
                     break
                 item_leilao["tempo"] -= 1
                 tempo_atual = item_leilao["tempo"]
-            # avisos nos marcos de tempo
-            if tempo_atual in (30, 15, 10, 5):
+            if tempo_atual in (15, 10, 5):
                 broadcast(f"\nAtenção! {tempo_atual} segundos restantes!")
             if tempo_atual <= 0:
                 with lock:
@@ -267,6 +268,7 @@ def thread_cronometro():
     finally:
         print("[Servidor] Cronômetro encerrado.")
 
+
 # simulação de outros usuários (bots)
 NOMES_BOTS = ["Carlos", "Beatriz", "Rafael", "Fernanda", "Thiago"]
 
@@ -279,31 +281,37 @@ def thread_bots():
             valor_base = item_leilao["valor_atual"]
         # intervalo aleatório entre lances dos bots
         time.sleep(random.uniform(8, 20))
+
         with lock:
             if not item_leilao["ativo"]:
                 break
-            # lance do bot: entre 1% e 8% acima do valor atual
+            lider_atual = item_leilao["vencedor"]
+            if lider_atual in NOMES_BOTS:
+                continue
             variacao = random.uniform(0.01, 0.08)
             novo_lance = round(valor_base * (1 + variacao), 2)
+            if novo_lance <= item_leilao["valor_atual"]:
+                continue
             bot_nome = random.choice(NOMES_BOTS)
-            if novo_lance > item_leilao["valor_atual"]:
-                lider_anterior = item_leilao["vencedor"]
-                if lider_anterior in usuarios:
-                    with lock_usuarios:
-                        prev = usuarios[lider_anterior]
-                        prev["saldo"] += prev["saldo_bloqueado"]
-                        prev["saldo_bloqueado"] = 0.0
-                        salvar_usuarios()
-                    broadcast(f"\n[INFO] Um bot superou seu lance! Seu saldo foi desbloqueado.")
-                item_leilao["valor_atual"] = novo_lance
-                item_leilao["vencedor"] = bot_nome
-                item_leilao["tempo"] = 30  # reseta o cronômetro
+            item_leilao["valor_atual"] = novo_lance
+            item_leilao["vencedor"] = bot_nome
+            item_leilao["tempo"] = 30  # reseta o cronômetro
+
+        if lider_atual in usuarios:
+            with lock_usuarios:
+                prev = usuarios[lider_atual]
+                prev["saldo"] += prev["saldo_bloqueado"]
+                prev["saldo_bloqueado"] = 0.0
+                salvar_usuarios()
+            broadcast(f"\n[INFO] Um bot superou seu lance! Seu saldo foi desbloqueado.")
+
         update = (
             f"\n[{bot_nome}] deu um lance de R${novo_lance:.2f}!\n"
             f"   Novo líder: {bot_nome} — Lance atual: R${novo_lance:.2f}"
         )
         broadcast(update)
         print(f"[Bot] {bot_nome} — R${novo_lance:.2f}")
+
 
 # inicializando o servidor
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP/IPv4
