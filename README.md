@@ -6,13 +6,18 @@ O sistema simula um leilão em tempo real onde múltiplos clientes podem se cone
 -Bots Inteligentes: O servidor possui bots (Carlos, Beatriz, etc.) que entram na disputa automaticamente, aumentando a interatividade.
 -Sincronização: Uso de Locks para evitar que dois usuários comprem o mesmo item ou corrompam o saldo ao mesmo tempo.
 
+____________________________________________________________________________________________
 
 Modo de uso:
 Para rodar o projeto, você precisará de um terminal para o Servidor e um (ou mais) terminais para os Clientes.
+
 O servidor precisa de 3 argumentos para começar: o limite de pessoas, o nome do item e o valor inicial: py server.py 3 Monalisa 1500
+
 Conectando como ClienteEm outro terminal (ou outro computador na mesma rede): py client.py
+
 O sistema pedirá seu nome. Se você já jogou antes, seu saldo antigo será carregado.
 
+____________________________________________________________________________________________
 
 Comandos Disponíveis:
 - :Lance <item> <valor> -> Oferece um valor pelo item.
@@ -24,6 +29,7 @@ Comandos Disponíveis:
 - :ajuda -> Mostra a lista de comandos.
 - :quit -> Sai do leilão com segurança.
 
+____________________________________________________________________________________________
 
 Regras do Jogo: Sempre que um novo lance é aceito, o cronômetro reseta dando chance para outros reagirem.
 
