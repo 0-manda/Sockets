@@ -1,0 +1,37 @@
+{
+    "Carlos": {
+        "saldo": 5000.0,
+        "saldo_bloqueado": 0.0,
+        "itens": []
+    },
+    "Beatriz": {
+        "saldo": 1846.02,
+        "saldo_bloqueado": 3153.98,
+        "itens": []
+    },
+    "Rafael": {
+        "saldo": 5000.0,
+        "saldo_bloqueado": 0.0,
+        "itens": []
+    },
+    "Fernanda": {
+        "saldo": 5000.0,
+        "saldo_bloqueado": 0.0,
+        "itens": []
+    },
+    "Thiago": {
+        "saldo": 5000.0,
+        "saldo_bloqueado": 0.0,
+        "itens": []
+    },
+    "augusto": {
+        "saldo": 1.0,
+        "saldo_bloqueado": 0.0,
+        "itens": [
+            {
+                "item": "Quadro Monalisa",
+                "valor_pago": 4999.0
+            }
+        ]
+    }
+}
