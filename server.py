@@ -11,16 +11,28 @@ import signal
 # configs do servidor
 CONFIG = {"HOST": "127.0.0.1", "PORTA": 5000}
 
-if len(sys.argv) < 2:
-    print("Uso: python server.py <limite de conexão>")
+if len(sys.argv) < 4:
+    print("Uso: python server.py <limite_conexoes> <nome_do_item> <valor_inicial>")
     sys.exit(1)
 try:
     LIMITE_CONEXAO = int(sys.argv[1])
-except ValueError:
-    print("Limite de conexão inválido. Deve ser um número inteiro.")
+    NOME_ITEM = " ".join(sys.argv[2:-1])
+    VALOR_INICIAL = float(sys.argv[-1])
+
+    item_leilao = {
+        "item": NOME_ITEM,
+        "descricao": f"Item leiloado nesta sessão: {NOME_ITEM}",
+        "valor_atual": VALOR_INICIAL,
+        "vencedor": "ninguém",
+        "tempo": 60,
+        "ativo": True,
+    }
+
+except (ValueError, IndexError):
+    print("Argumentos inválidos. Deve ser: <limite_conexoes> <nome_do_item> <valor_inicial>")
     sys.exit(1)
 
-lock_usuarios = threading.Lock()  # lock para acessar a lista de usuários
+lock_usuarios = threading.Lock()# lock para acessar a lista de usuários
 
 def carregar_usuarios():
     if os.path.exists("usuarios.json"):
@@ -33,10 +45,9 @@ def salvar_usuarios():
     with open("usuarios.json", "w", encoding="utf-8") as f:
         json.dump(usuarios, f, indent=4)
 
-usuarios = carregar_usuarios()  # dicionário de usuários e seus saldos
+usuarios = carregar_usuarios()# dicionário de usuários e seus saldos
 
-# Sanitiza entradas corrompidas: garante que nenhum usuário tenha
-# saldo total acima de 5000 (possível resquício de bug em sessões anteriores)
+# Sanitiza entradas corrompidas: garante que nenhum usuário tenha saldo total acima de 5000
 def sanitizar_usuarios():
     for nome_u, u in usuarios.items():
         # Garante que as chaves existem
@@ -53,9 +64,7 @@ def sanitizar_usuarios():
 
 sanitizar_usuarios()
 
-# FIX 1: garante que todos os bots já existem em usuarios com saldo inicial,
-# assim o desbloqueio de saldo do líder anterior funciona corretamente quando
-# um bot supera um jogador humano.
+# garante que todos os bots já existem em usuarios com saldo inicial
 NOMES_BOTS = ["Carlos", "Beatriz", "Rafael", "Fernanda", "Thiago"]
 with lock_usuarios:
     for bot in NOMES_BOTS:
@@ -63,17 +72,7 @@ with lock_usuarios:
             usuarios[bot] = {"saldo": 5000.0, "saldo_bloqueado": 0.0, "itens": []}
     salvar_usuarios()
 
-# memória Compartilhada
-item_leilao = {
-    "item": "Quadro Monalisa",
-    "descricao": "Obra-prima de Leonardo da Vinci, século XVI.",
-    "valor_atual": 1000.0,
-    "vencedor": "ninguém",
-    "tempo": 60,
-    "ativo": True,
-}
-
-lock = threading.Lock()          # lock na memória compartilhada
+lock = threading.Lock()# lock na memória compartilhada
 clientes_conectados = []
 clientes_lock = threading.Lock() # lock na lista de clientes
 conexoes_ativas = 0
@@ -92,7 +91,7 @@ def thread_enviar(conn, fila_envio):
     while True:
         try:
             msg = fila_envio.get(timeout=1)
-            if msg is None:  # sinal para encerrar
+            if msg is None: # sinal para encerrar
                 break
             conn.send(msg.encode())
         except queue.Empty:
@@ -130,12 +129,10 @@ def thread_receber(conn, addr, fila_envio):
         fila_envio.put(info)
         time.sleep(0.1)
         fila_envio.put("\nDigite seu nome para participar: ")
-
-        # FIX 2: timeout no recv para não travar indefinidamente
+        # timeout no recv para não travar indefinidamente
         conn.settimeout(120)
         nome_raw = conn.recv(1024).decode().strip()
         conn.settimeout(None)
-
         nome = nome_raw if nome_raw else f"Usuario_{addr[1]}"
         with lock_usuarios:
             if nome not in usuarios:
@@ -149,11 +146,8 @@ def thread_receber(conn, addr, fila_envio):
                     f"Saldo disponível: R${u['saldo']:.2f}, "
                     f"Itens comprados: {len(u['itens'])}"
                 )
-
-        # FIX 3: timeout curto no loop principal para não bloquear em recv
-        # quando o leilão encerra — a cada segundo verifica se ainda está ativo.
+        # timeout curto no loop principal para não bloquear em recv
         conn.settimeout(1.0)
-
         # loop principal
         while True:
             with lock:
@@ -166,11 +160,11 @@ def thread_receber(conn, addr, fila_envio):
                 continue  # apenas verifica o estado do leilão novamente
             except Exception:
                 break
-
+            ####################################################
             if not dados or dados == ":quit":
                 fila_envio.put("\nSaindo do leilão...\n")
                 break
-
+            #####################################################
             if dados == ":item":
                 with lock:
                     resposta = (
@@ -182,12 +176,12 @@ def thread_receber(conn, addr, fila_envio):
                         f"--------------------"
                     )
                 fila_envio.put(resposta)
-
+            #####################################################
             elif dados == ":tempo":
                 with lock:
                     t = item_leilao["tempo"]
                 fila_envio.put(f"\nTempo restante: {t} segundos")
-
+            #####################################################
             elif dados == ":saldo":
                 with lock_usuarios:
                     u = usuarios.get(nome, {})
@@ -198,7 +192,7 @@ def thread_receber(conn, addr, fila_envio):
                     f"Saldo bloqueado: R${bloqueado:.2f}\n"
                     f"Saldo total: R${saldo + bloqueado:.2f}"
                 )
-
+            #####################################################
             elif dados == ":itens":
                 with lock_usuarios:
                     itens = list(usuarios.get(nome, {}).get("itens", []))
@@ -212,7 +206,7 @@ def thread_receber(conn, addr, fila_envio):
                         for it in itens
                     )
                     fila_envio.put(f"\n--- SEUS ITENS ---\n{linhas}\n------------------")
-
+            #####################################################
             elif dados.lower().startswith(":lance"):
                 partes = dados.split()
                 if len(partes) < 3:
@@ -236,8 +230,7 @@ def thread_receber(conn, addr, fila_envio):
                             lance_aceito = False
                             with lock_usuarios:
                                 u = usuarios[nome]
-                                # saldo efetivo: se o jogador já é líder, o bloqueado
-                                # será devolvido, então conta como disponível
+                                # saldo efetivo: se o jogador já é líder, o bloqueado será devolvido, então conta como disponível
                                 saldo_efetivo = u["saldo"] + (u["saldo_bloqueado"] if lider_atual == nome else 0.0)
                                 if saldo_efetivo < novo_lance:
                                     fila_envio.put(
@@ -246,8 +239,7 @@ def thread_receber(conn, addr, fila_envio):
                                         f"e o lance é R${novo_lance:.2f}."
                                     )
                                 else:
-                                    # Verifica novamente o valor atual com lock para evitar
-                                    # race condition entre a checagem e a atualização
+                                    # ve o valor atual com lock para evitar race entre a checagem e a atualização
                                     with lock:
                                         if novo_lance <= item_leilao["valor_atual"]:
                                             fila_envio.put(
@@ -286,7 +278,7 @@ def thread_receber(conn, addr, fila_envio):
                                 )
                     except ValueError:
                         fila_envio.put("\nValor do lance inválido. Use um número para o lance.")
-
+            #####################################################
             elif dados.lower().startswith(":vender"):
                 item_vender = dados[8:].strip()
                 with lock_usuarios:
@@ -311,9 +303,9 @@ def thread_receber(conn, addr, fila_envio):
                     "\nComando desconhecido. Use :item, :tempo, :saldo, :itens, "
                     ":Lance <item> <valor>, :Vender <item> ou :quit."
                 )
-
+#####################################################
     except Exception as e:
-        # FIX 5: loga o erro real em vez de suprimir silenciosamente
+        # loga o erro real
         print(f"[Servidor] Erro na thread do cliente {addr}: {e}")
     finally:
         if nome and nome in usuarios:
@@ -335,7 +327,6 @@ def thread_receber(conn, addr, fila_envio):
         except Exception:
             pass
         print(f"[Servidor] Cliente {addr} desconectado.")
-
 
 # thread do cronômetro regressivo
 def thread_cronometro():
@@ -371,41 +362,36 @@ def thread_cronometro():
                 )
                 broadcast(msg)
                 print(f"[Servidor] Leilão encerrado. Vencedor: {vencedor} — R${valor:.2f}")
-                break
+                print("[Servidor] Fechando servidor em 5 segundos...")
+                time.sleep(5) 
+                os._exit(0)
     finally:
         print("[Servidor] Cronômetro encerrado.")
-
 
 # thread dos bots
 def thread_bots():
     time.sleep(5)
     while True:
-        time.sleep(random.uniform(8, 20))
-
+        time.sleep(random.uniform(30, 40))
         with lock:
             if not item_leilao["ativo"]:
                 break
             valor_base = item_leilao["valor_atual"]
             lider_atual = item_leilao["vencedor"]
-
         # escolhe um bot que NÃO seja o líder atual para dar o lance
         bots_disponiveis = [b for b in NOMES_BOTS if b != lider_atual]
         if not bots_disponiveis:
             continue
         bot_nome = random.choice(bots_disponiveis)
-
         variacao = random.uniform(0.01, 0.08)
         novo_lance = round(valor_base * (1 + variacao), 2)
-
         # saldo efetivo do bot = saldo livre + bloqueado (que será devolvido se ele der novo lance)
         with lock_usuarios:
             b = usuarios[bot_nome]
             saldo_efetivo = b["saldo"] + b["saldo_bloqueado"]
-
         # bot não pode dar lance acima do seu saldo total (limite de R$5000)
         if novo_lance > saldo_efetivo:
             continue
-
         with lock:
             if not item_leilao["ativo"]:
                 break
@@ -416,8 +402,7 @@ def thread_bots():
             item_leilao["vencedor"] = bot_nome
             item_leilao["tempo"] = 30
 
-        # atualiza saldos: devolve bloqueado do bot anterior (se for bot),
-        # cobra novo lance do bot vencedor, desbloqueia humano se era o líder
+        # atualiza saldos: devolve bloqueado do bot anterior (se for bot), cobra novo lance do bot vencedor, desbloqueia humano se era o líder
         with lock_usuarios:
             # devolve lance anterior do bot escolhido (caso ele já tivesse bloqueado algo)
             b = usuarios[bot_nome]
@@ -426,7 +411,6 @@ def thread_bots():
             # cobra o novo lance
             b["saldo"] -= novo_lance
             b["saldo_bloqueado"] += novo_lance
-
             # desbloqueia saldo do líder anterior
             if lider_atual in usuarios:
                 prev = usuarios[lider_atual]
@@ -435,7 +419,6 @@ def thread_bots():
                 if lider_atual not in NOMES_BOTS:
                     broadcast(f"\n[INFO] Um bot superou seu lance! Seu saldo foi desbloqueado.")
             salvar_usuarios()
-
         update = (
             f"\n[{bot_nome}] deu um lance de R${novo_lance:.2f}!\n"
             f"   Novo líder: {bot_nome} — Lance atual: R${novo_lance:.2f}"
@@ -443,8 +426,7 @@ def thread_bots():
         broadcast(update)
         print(f"[Bot] {bot_nome} — R${novo_lance:.2f}")
 
-
-# FIX 8: salva dados ao receber SIGINT (Ctrl+C) antes de encerrar
+# salva dados ao receber SIGINT (Ctrl+C) antes de encerrar
 def encerrar_servidor(sig, frame):
     print("\n[Servidor] Encerrando... salvando dados.")
     with lock_usuarios:
@@ -454,7 +436,6 @@ def encerrar_servidor(sig, frame):
     except Exception:
         pass
     sys.exit(0)
-
 signal.signal(signal.SIGINT, encerrar_servidor)
 
 # inicializando o servidor
