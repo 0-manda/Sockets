@@ -1,4 +1,5 @@
 O sistema simula um leilão em tempo real onde múltiplos clientes podem se conectar a um servidor central para disputar um item. Segue uma breve descrição da implementação:
+
 -Concorrência: O servidor usa threading para lidar com vários clientes simultaneamente e um cronômetro regressivo.
 -Persistência: Os dados dos usuários (saldo e itens comprados) são salvos em um arquivo usuarios.json, permitindo que o progresso seja mantido entre sessões.
 -Mecanismo de Lances: Ao dar um lance, o valor é "bloqueado" do saldo do usuário. Se alguém superar o lance, o valor é devolvido.
