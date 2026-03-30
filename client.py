@@ -74,14 +74,11 @@ def main():
                 print("O nome não pode ser vazio. Tente novamente.")
                 nome = input("Digite seu nome para participar: ").strip()
             cliente.send(nome.encode())
-
             # inicia a thread de escuta ANTES de qualquer input,
             # para não perder mensagens do servidor
             t = threading.Thread(target=thread_escutar, args=(cliente,), daemon=True)
             t.start()
-
             ajuda()
-
             while not encerrado.is_set():
                 try:
                     comando = input("Sua ação: ").strip()
@@ -105,9 +102,7 @@ def main():
                 except Exception:
                     print("[Cliente] Erro ao enviar o comando.")
                     break
-
             t.join(timeout=2)
-
     except ConnectionRefusedError:
         print("\n[ERRO] Não foi possível conectar ao servidor.")
         print("Verifique se o servidor está em execução.")
