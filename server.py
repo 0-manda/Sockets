@@ -1,12 +1,12 @@
-import socket
-import threading
-import time
-import random
-import sys
-import json
-import os
-import queue
-import signal
+import socket # socket.socket(cria o socket/rede), connect(conecta ao servidor), send(envia dados), recv(recebe dados), close(fecha a conexão), settimeout(configura tempo de espera para operações de recv)
+import threading # threading.Thread(cria threads para escutar mensagens do servidor sem bloquear o programa principal), threading.Event(para criar uma flag de encerramento que pode ser setada por qualquer thread), t.start(inicia a thread), t.join(espera a thread terminar)
+import time # time.sleep(pausa a execução por um tempo determinado), time.strftime(formata o horário atual como string), time.time() (retorna o tempo atual em segundos desde a época), time.localtime() (converte um tempo em segundos para uma struct_time com informações de data e hora)
+import random # random.choice(escolhe um elemento aleatório de uma lista), random.uniform(gera um número de ponto flutuante aleatório entre dois valores)
+import sys # sys.argv(lista de argumentos da linha de comando), sys.exit(encerrar o programa)
+import json # json.load(carrega um objeto JSON de um arquivo), json.dump(salva um objeto como JSON em um arquivo)
+import os # os.path.exists(verifica se um arquivo existe), os.remove(remove um arquivo)
+import queue # queue.Queue(estrutura de dados de fila segura para threads, usada para comunicação entre threads, como a fila de envio de mensagens do servidor para os clientes)
+import signal # signal.signal(configura um handler para um sinal específico, como SIGINT para capturar Ctrl+C e executar uma função de limpeza antes de encerrar o programa)
 
 # configs do servidor
 CONFIG = {"HOST": "127.0.0.1", "PORTA": 5000} #bind
